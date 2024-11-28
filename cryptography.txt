@@ -1,0 +1,124 @@
+Public key cryptography
+____________________________________________________________________________________________________________________________________________________________________________________________
+_____________________________________________________________________________________________________________________________________________________________________________________________
+Generate RSA Keys (Private and Public)
+....................................................................................................................
+Generate Private Key (2048 bits):
+        openssl genrsa -out sender_private_key.pem 2048
+
+Extract Public Key:
+            openssl rsa -in sender_private_key.pem -pubout -out sender_public_key.pem
+
+---------------------------------------------
+Encrypt Data with Public Key:
+      openssl pkeyutl -encrypt -in message.txt -out encrypted_message.bin -inkey sender_public_key.pem -pubin
+Decrypt Data with Private Key:
+      openssl pkeyutl -decrypt -in encrypted_message.bin -out decrypted_message.txt -inkey sender_private_key.pem
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Important Considerations:
+Public Key Encryption: When encrypting with pkeyutl, you use the recipient's public key to ensure that only the recipient (who has the corresponding private key) can decrypt the message.
+Private Key Decryption: The private key is kept secret and used by the owner to decrypt messages that were encrypted with the corresponding public key.
+===========================================================================================================================================================================================
+
+Here’s the complete sequence of steps for generating and using message digest, digital signature, and digital certificate, ensuring both Sender A and Receiver B are able to communicate securely.
+    Scenario:
+     Sender A sends a message to Receiver B. The process involves:
+        Creating a digital signature.
+        Ensuring message integrity using a message digest.
+        Verifying the authenticity of Sender A using a digital certificate.
+Step 1: Generate Sender A’s Key Pair (Private and Public Keys)
+         Generate Sender A’s Private Key:
+                 openssl genrsa -out sender_private_key.pem 2048
+                                           sender_private_key.pem: This private key is used by Sender A to sign messages and must be kept secret.
+        :Generate Sender A’s Public Key from the private key:
+                  openssl rsa -in sender_private_key.pem -pubout -out sender_public_key.pem
+                                            sender_public_key.pem: This is the public key that will be shared with others to verify the digital signature.
+Step 2: Create a Certificate Signing Request (CSR)
+         :Generate a CSR to request a certificate (which will include Sender A’s public key):
+
+                  openssl req -new -key sender_private_key.pem -out sender_csr.csr
+
+                               This will prompt you to enter information like country, state, locality, organization, and common name (which typically identifies the owner of the certificate).
+
+
+                                      But,  Self-signed certificates are free to create, while CA-signed certificates require payment. let use self-signed certificate for this testing
+                   openssl x509 -req -days 365 -in sender_csr.csr -signkey sender_private_key.pem -out sender_certificate.crt
+                                      sender_certificate.crt: This is the self-signed certificate containing Sender A’s public key and identity information.
+Step 4: Create the Message
+         :Create the message that Sender A wants to send to Receiver B
+                            echo "Confidential message from A to B" > message.txt
+Step 5: Generate the Message Digest (Hash)
+                  Sender A calculates a message digest (hash) of the message to ensure integrity.
+
+                            Generate SHA-256 hash of the message:
+                                    openssl dgst -sha256 -out message_digest.sha256 message.txt
+
+                                                message_digest.sha256: The generated hash (message digest) of the message.
+
+Step 6: Sign the Message Digest
+         :Sender A signs the message digest using their private key to create the digital signature.
+
+                          Sign the message digest:
+                                    openssl dgst -sha256 -sign sender_private_key.pem -out signature.bin message_digest.sha256
+                                                   signature.bin: The digital signature, created by signing the message digest with Sender A’s private key.
+----------------------------------------------------------------------------------------------------------------
+                      Step 7:  Send the Files to Receiver B
+                               Sender A sends the following files to Receiver B:
+
+                                message.txt: The original message.
+                                signature.bin: The digital signature.
+                                sender_certificate.crt: The digital certificate that contains Sender A’s public key.
+_...................................................................................................................................................
+
+Step 8: Receiver B Verifies the Certificate
+            Receiver B needs to verify Sender A’s certificate to ensure it's valid and trustworthy. Receiver B also extracts Sender A’s public key from the certificate for verifying the signature.
+
+                         Inspect the certificate:
+                                  openssl x509 -in sender_certificate.crt -text -noout
+                                                  This will show the details of the certificate, including the public key, issuer, and validity dates.
+
+
+         :Extract Sender A’s public key from the certificate:
+                  openssl x509 -in sender_certificate.crt -pubkey -noout > sender_public_key.pem
+ Step 9: Verify the Digital Signature
+          :Receiver B verifies the digital signature using Sender A’s public key.
+
+                    Verify the signature:
+                              openssl dgst -sha256 -verify sender_public_key.pem -signature signature.bin message_digest.sha256
+ 
+                                        If the signature is valid, the output will be:
+                                                                    Verified OK
+                                         If the signature is invalid, the output will show
+                                                                    Verification Failure
+Step 10: Verify the Integrity of the Message
+             :Receiver B recomputes the message digest from the received message to ensure that it has not been tampered with.
+                               Recompute the hash of message.txt:
+                                          openssl dgst -sha256 -out verify_message_digest.sha256 message.txt
+                              Compare the recomputed hash with the original hash:
+                                            diff message_digest.sha256 verify_message_digest.sha256
+                                                                If the hashes match, the message has not been altered.
+                                                                  If the hashes differ, the message has been tampered with.
+=====================================================================================================================================
+                                        Summary of Key Steps
+                                 Generate the Key Pair: Sender A generates a private key and public key.
+                                 Create CSR and Certificate: Sender A creates a CSR and gets a certificate that includes the public key.
+                                Message Digest: Sender A computes the hash (message digest) of the message.
+                                Digital Signature: Sender A signs the message digest using their private key.
+                                Sending Files: Sender A sends the message, signature, and certificate.
+                                Certificate Verification: Receiver B verifies the certificate and extracts Sender A’s public key.
+                                 Signature Verification: Receiver B verifies the digital signature using Sender A’s public key.
+                                Message Integrity: Receiver B recomputes the message digest and compares it with the original digest.
+============================================================================================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
